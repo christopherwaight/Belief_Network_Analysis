@@ -1,0 +1,38 @@
+Belief Network Analysis Report
+==================================================
+
+Generated on: 2025-09-11 13:39:39
+Input file: data_files/dataset_25_1.dat
+
+Data Summary:
+  - Photos: 25
+  - Possible labels: 10
+  - Unique experts: 1
+  - Total ratings: 226
+
+Optimization Summary:
+  - Total simulations: 1500
+  - Best solutions kept: 50
+  - Best sup norm achieved: 0.030847
+  - Average of best sup norms: 0.032095
+
+PCA Summary:
+  - Original dimensions: 25
+  - Reduced dimensions: 4
+  - Variance retained: 0.9932
+
+Clustering Summary:
+  - Number of clusters: 13
+  - Cluster 0: 2 points, centroid sup norm = 0.030961
+  - Cluster 1: 4 points, centroid sup norm = 0.031505
+  - Cluster 2: 4 points, centroid sup norm = 0.032189
+  - Cluster 3: 4 points, centroid sup norm = 0.032289
+  - Cluster 4: 3 points, centroid sup norm = 0.032137
+  - Cluster 5: 2 points, centroid sup norm = 0.032292
+  - Cluster 6: 6 points, centroid sup norm = 0.032148
+  - Cluster 7: 4 points, centroid sup norm = 0.031720
+  - Cluster 8: 7 points, centroid sup norm = 0.032195
+  - Cluster 9: 3 points, centroid sup norm = 0.031412
+  - Cluster 10: 2 points, centroid sup norm = 0.032296
+  - Cluster 11: 4 points, centroid sup norm = 0.032469
+  - Cluster 12: 5 points, centroid sup norm = 0.032154
