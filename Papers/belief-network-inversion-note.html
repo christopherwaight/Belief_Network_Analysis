@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belief Network Inversion: Algorithm II, Notes &amp; References</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async
+            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            }
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.7;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            color: #000;
+        }
+        h1 {
+            font-size: 1.45em;
+            text-align: center;
+            border-bottom: 1px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 6px;
+        }
+        .subtitle {
+            text-align: center;
+            font-style: italic;
+            margin-top: 0;
+            margin-bottom: 28px;
+            font-size: 0.95em;
+            color: #444;
+        }
+        h2 {
+            font-size: 1.15em;
+            margin-top: 36px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+        }
+        p { text-align: justify; }
+
+        /* ---- Algorithm box (Sutton & Barto style) ---- */
+        .algo-box {
+            background-color: #f7f6f0;
+            border: 1px solid #bbb;
+            border-left: 4px solid #555;
+            padding: 18px 24px;
+            margin: 28px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.88em;
+            line-height: 1.65;
+        }
+        .algo-box .algo-title {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 1.05em;
+            font-weight: bold;
+            border-bottom: 1px solid #999;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
+        }
+        .algo-box .phase {
+            margin-top: 14px;
+            margin-bottom: 4px;
+            font-family: 'Times New Roman', Times, serif;
+            font-weight: bold;
+            font-size: 0.97em;
+            font-style: italic;
+        }
+        .algo-box .indent1 { padding-left: 1.8em; }
+        .algo-box .indent2 { padding-left: 3.6em; }
+        .algo-box .indent3 { padding-left: 5.4em; }
+        .algo-box .kw { font-weight: bold; }
+
+        /* ---- Highlight callout ---- */
+        .highlight {
+            background-color: #f9f9f9;
+            padding: 14px 18px;
+            border-left: 3px solid #333;
+            margin: 24px 0;
+            font-size: 0.95em;
+        }
+
+        /* ---- Variable table ---- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 24px 0;
+            font-size: 0.93em;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 7px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+
+<h1>Belief Network Inversion: Algorithm II, Notes &amp; References</h1>
+<p class="subtitle">Algorithm II (improved) &mdash; with alternative formulations, methodological notes, and bibliography</p>
+
+<h2>Setup</h2>
+
+<p>
+Let there be $I$ images and $J$ labels.
+Each image $i$ is linked to each label $j$ by a certitude $f_{ij} \in [0,1]$,
+modelled as a clipped Gaussian:
+\[
+  f_{ij} \sim \mathcal{N}(\mu_{ij},\, \sigma_{ij}^2) \;\text{ clipped to } [0,1].
+\]
+Collect the means into the matrix $\bar{F} = [\mu_{ij}]_{I \times J}$.
+The <em>forward map</em> predicts label certitudes from image weights:
+\[
+  L = \bar{F}^{\!\top} \Phi, \qquad
+  L \in [0,1]^J, \quad \Phi \in [0,1]^I,
+  \quad \Phi \geq 0,\quad \textstyle\sum_i \phi_i \leq 1.
+\]
+</p>
+
+<p>
+The <em>inverse problem</em> is: given an observed label vector $\ell \in [0,1]^J$,
+find the image-weight distribution $\Phi$ that best explains it.
+We measure fit by the <em>sup-norm misfit</em>
+\[
+  M(\Phi) = \bigl\|\ell - \bar{F}^{\!\top}\Phi\bigr\|_\infty
+           = \max_{j=1}^{J}\;\bigl(\ell_j - (\bar{F}^{\!\top}\Phi)_j\bigr),
+\]
+and define the minimum misfit $M^* = \min_{\Phi \in P}\, M(\Phi)$,
+where the feasible polytope is
+$P = \{\Phi : \phi_i \geq 0,\; \sum_i \phi_i \leq 1\}$.
+The <em>optimal set</em> is then
+\[
+  P^* = \bigl\{\Phi \in P : (\bar{F}^{\!\top}\Phi)_j \geq \ell_j - M^*
+        \;\;\forall j\bigr\}.
+\]
+</p>
+
+<p>
+The improved algorithm operates on the following quantities:
+</p>
+
+<table>
+  <tr><th>Symbol</th><th>Meaning</th><th>Dimension</th></tr>
+  <tr><td>$\mu_{ij},\,\sigma_{ij}$</td><td>Mean and std of link certitude $f_{ij}$</td><td>scalars, $I \times J$ each</td></tr>
+  <tr><td>$\bar{F}$</td><td>Matrix of link-certitude means</td><td>$I \times J$</td></tr>
+  <tr><td>$\ell$</td><td>Observed label vector from the network</td><td>$J$</td></tr>
+  <tr><td>$\Phi$</td><td>Image-weight vector (belief state)</td><td>$I$</td></tr>
+  <tr><td>$M^*$</td><td>Minimum achievable sup-norm misfit</td><td>scalar</td></tr>
+  <tr><td>$P^*$</td><td>Set of all minimisers of $M$ in $P$</td><td>polytope $\subset \mathbb{R}^I$</td></tr>
+  <tr><td>$N$</td><td>Number of Monte Carlo samples</td><td>integer</td></tr>
+  <tr><td>$T$</td><td>Hit-and-run mixing steps per sample</td><td>integer</td></tr>
+</table>
+
+<h2>Algorithm II (Improved)</h2>
+
+<div class="algo-box">
+
+  <div class="algo-title">Algorithm II (Improved) &mdash; Belief Network Inversion via Epigraph LP and Hit-and-Run</div>
+
+  <div><span class="kw">Input:</span>
+    &nbsp;$\{\mu_{ij}, \sigma_{ij}\}_{i=1..I,\;j=1..J}$,&nbsp;
+    observed labels $\ell \in [0,1]^J$,&nbsp;
+    sample budget $N$,&nbsp;
+    mixing steps $T$
+  </div>
+
+  <!-- Phase 1 -->
+  <div class="phase">Phase 1 &mdash; Build the mean link matrix</div>
+  <div class="indent1">
+    <span class="kw">for</span> $i = 1$ <span class="kw">to</span> $I$, $j = 1$ <span class="kw">to</span> $J$ <span class="kw">do</span>
+  </div>
+  <div class="indent2">
+    $\bar{f}_{ij} \leftarrow \mu_{ij}$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <em>(point estimate of each link certitude)</em>
+  </div>
+  <div class="indent1"><span class="kw">end for</span></div>
+  <div class="indent1">
+    $\bar{F} \leftarrow [\bar{f}_{ij}]$
+  </div>
+
+  <!-- Phase 2 -->
+  <div class="phase">Phase 2 &mdash; Find $M^*$ via the Epigraph Linear Programme</div>
+  <div class="indent1">
+    Introduce scalar slack variable $t$.
+  </div>
+  <div class="indent1">
+    Solve:
+  </div>
+  <div class="indent2">
+    $\min_{t,\,\Phi}\;\; t$
+  </div>
+  <div class="indent2">
+    $\text{subject to:}$
+  </div>
+  <div class="indent3">
+    $(\bar{F}^{\!\top}\Phi)_j + t \;\geq\; \ell_j$
+    &nbsp;&nbsp;&nbsp; $j = 1,\ldots,J$
+  </div>
+  <div class="indent3">
+    $\phi_i \;\geq\; 0$
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    $i = 1,\ldots,I$
+  </div>
+  <div class="indent3">
+    $\displaystyle\sum_{i=1}^{I} \phi_i \;\leq\; 1$
+  </div>
+  <div class="indent1">
+    Record solution: $M^* \leftarrow t^*$, $\hat{\Phi} \leftarrow \Phi^*$.
+  </div>
+  <div class="indent1">
+    Form the optimal set:
+    $P^* \leftarrow \bigl\{\Phi \in P : (\bar{F}^{\!\top}\Phi)_j \geq \ell_j - M^*\;\;\forall j\bigr\}$
+  </div>
+
+  <!-- Phase 3 -->
+  <div class="phase">Phase 3 &mdash; Initialise Hit-and-Run sampler on $P^*$</div>
+  <div class="indent1">
+    $\Phi_{\text{current}} \leftarrow \hat{\Phi}$
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <em>(start at the LP solution)</em>
+  </div>
+  <div class="indent1">
+    $h \leftarrow \{\}$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <em>(histogram accumulator)</em>
+  </div>
+
+  <!-- Phase 4 -->
+  <div class="phase">Phase 4 &mdash; Monte Carlo posterior over labels</div>
+  <div class="indent1">
+    <span class="kw">Repeat</span> $N$ <span class="kw">times</span>:
+  </div>
+  <div class="indent2">
+    <em>// Step A: draw a new $\tilde{\Phi}$ from $P^*$ by hit-and-run</em>
+  </div>
+  <div class="indent2">
+    <span class="kw">Repeat</span> $T$ <span class="kw">steps</span>:
+  </div>
+  <div class="indent3">
+    Choose a random direction $d \in \mathbb{R}^I$, $\|d\|=1$
+  </div>
+  <div class="indent3">
+    Find the chord $\mathcal{C} = \{\Phi_{\text{current}} + \lambda d : \lambda \in \mathbb{R}\} \cap P^*$
+  </div>
+  <div class="indent3">
+    Draw $\lambda \sim \text{Uniform}(\mathcal{C})$; &nbsp;set $\Phi_{\text{current}} \leftarrow \Phi_{\text{current}} + \lambda d$
+  </div>
+  <div class="indent2">
+    <span class="kw">End Repeat</span>; &nbsp;set $\tilde{\Phi} \leftarrow \Phi_{\text{current}}$
+  </div>
+  <div class="indent2">
+    &nbsp;
+  </div>
+  <div class="indent2">
+    <em>// Step B: sample the link-certitude matrix for this draw</em>
+  </div>
+  <div class="indent2">
+    <span class="kw">for</span> $i = 1$ <span class="kw">to</span> $I$, $j = 1$ <span class="kw">to</span> $J$ <span class="kw">do</span>
+  </div>
+  <div class="indent3">
+    $\tilde{f}_{ij} \leftarrow \text{clip}\bigl(\mathcal{N}(\mu_{ij},\,\sigma_{ij}^2),\;0,\;1\bigr)$
+  </div>
+  <div class="indent2">
+    <span class="kw">end for</span>; &nbsp;set $\tilde{F} \leftarrow [\tilde{f}_{ij}]$
+  </div>
+  <div class="indent2">
+    &nbsp;
+  </div>
+  <div class="indent2">
+    <em>// Step C: forward pass and histogram update</em>
+  </div>
+  <div class="indent2">
+    Compute $\tilde{L} \leftarrow \tilde{F}^{\!\top}\tilde{\Phi}$
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <em>(predicted label vector)</em>
+  </div>
+  <div class="indent2">
+    Add $\tilde{L}$ to histogram $h$
+  </div>
+  <div class="indent1">
+    <span class="kw">End Repeat</span>
+  </div>
+  <div class="indent1">
+    Normalise $h$ to unit area.
+  </div>
+
+  <div style="margin-top:14px">
+    <span class="kw">Output:</span> &nbsp;$M^*$, &nbsp;$P^*$, &nbsp;normalised histogram $h$ over label space
+  </div>
+
+</div>
+
+<h2>Why this is better than the original</h2>
+
+<p>
+The original Algorithm II searched for the minimum of $M(\Phi)$ by walking the
+vertices of the polytope $P$.  It failed in two ways.
+First, by the Upper Bound Theorem a polytope in $I$ dimensions with $m$ constraints
+can have up to $O(m^{\lfloor I/2 \rfloor})$ vertices; the walk becomes hopelessly
+expensive the moment more than a handful of constraints are added.
+Second, and more fundamentally, $M(\Phi)$ is <em>not linear</em>:
+it is a convex, piecewise-linear function whose level sets are nested boxes,
+not hyperplanes.
+The Fundamental Theorem of Linear Programming forces the optimum to a vertex only
+when the objective <em>is</em> linear.
+Here the optimum balances the residuals across all labels simultaneously, and that
+balanced point generically lies in the interior of a face of $P$, not at a vertex.
+(See the 2&times;2 counterexample: $F = [[0.6,0.2],[0.2,0.6]]$, $\ell = (0.7,0.7)$ &mdash;
+the best vertex returns $M = 0.5$; the true answer is $M^* = 0.3$ at
+$\Phi^* = (\tfrac{1}{2}, \tfrac{1}{2})$, the midpoint of an edge.)
+</p>
+
+<p>
+Replacing triangle distributions with <b>clipped Gaussians</b> for the link certitudes
+$f_{ij}$ makes the forward pass essentially free.
+The sum of independent Gaussians is Gaussian: if $f_{ij} \sim \mathcal{N}(\mu_{ij}, \sigma_{ij}^2)$
+then, for a fixed weight vector $\Phi$,
+\[
+  \bigl(\bar{F}^{\!\top}\Phi\bigr)_j
+  = \sum_{i} f_{ij}\,\phi_i
+  \;\sim\;
+  \mathcal{N}\!\Bigl(\sum_i \mu_{ij}\phi_i,\;\sum_i \sigma_{ij}^2\phi_i^2\Bigr),
+\]
+and a single clip to $[0,1]$ is applied at the end.
+No numerical convolution is needed &mdash; no DFT, no flip-and-slide, just one line of arithmetic.
+For link priors that are not Gaussian, direct convolution (flip-and-slide) remains a
+valid and accurate fallback, though it is not needed here.
+</p>
+
+<p>
+Phase 2 replaces the vertex walk with an <b>epigraph linear programme</b>.
+By introducing the slack variable $t$, the non-linear sup-norm objective becomes a
+genuinely linear one: minimise $t$.
+A linear programme <em>does</em> have its optimum at a vertex &mdash; but now at a vertex
+of the lifted polytope $Q \subset \mathbb{R}^{I+1}$.
+When that vertex is projected back to $\mathbb{R}^I$ it is generically not a vertex of
+the original $P$.
+The LP finds $M^*$ and one exact minimiser $\hat{\Phi}$ in polynomial time, eliminating
+the combinatorial explosion entirely.
+The optimal set $P^*$ is then just $P$ intersected with $J$ extra halfspaces &mdash; a
+smaller, well-shaped polytope.
+Phase 3 samples from $P^*$ uniformly using <b>hit-and-run</b>: at each step, choose a
+random direction, find the chord through the current point within $P^*$, and draw a
+new point uniformly along it.
+This replaces Bob's $\sum \lambda_k v_k'$ step, applied now to the <em>correct</em>
+polytope.
+Rather than Dirichlet-mixing over vertices of $P$ (which may not even be in $P^*$),
+it samples the full ambiguity of the solution uniformly and without boundary bias.
+</p>
+
+<p>
+Finally, Phase 4 samples <em>both</em> the belief state $\tilde{\Phi}$ and the link
+matrix $\tilde{F}$ at every iteration.
+The original algorithm drew $\lambda_k$ randomly but held the $f_{ij}$ distributions
+fixed as numerical PDFs, inconsistently treating the link uncertainty.
+Here each Monte Carlo step draws a fresh $\tilde{F}$ from the clipped-Gaussian priors
+alongside a fresh $\tilde{\Phi}$ from $P^*$, so the resulting histogram $h$ faithfully
+propagates both sources of uncertainty into the posterior over labels.
+</p>
+
+
+<h2>Alternative: Double-Sampling Algorithm (&sect;2.7)</h2>
+
+<p>
+The following is an alternative posteriori algorithm from the original draft paper
+(Kleinhenz et al., BAMC 2025, &sect;2.7).
+Instead of using the mean link matrix $\bar{F}$ for the LP solve, it resamples $F$ in
+an outer loop, producing a different $\hat{\Phi}$ at each outer step.
+It is presented here for comparison with the main hit-and-run algorithm above.
+</p>
+
+<div class="algo-box">
+
+  <div class="algo-title">Algorithm II (Double-Sampling Variant) &mdash; Kleinhenz et al. &sect;2.7</div>
+
+  <div><span class="kw">Input:</span>
+    &nbsp;$\{\mu_{ij}, \sigma_{ij}\}$,&nbsp;
+    observed labels $\ell$,&nbsp;
+    outer sample budget $B$,&nbsp;
+    inner sample budget $A$
+  </div>
+
+  <div class="indent1">$L_{\text{post}} \leftarrow []$</div>
+
+  <div class="phase">Outer loop</div>
+  <div class="indent1">
+    <span class="kw">Repeat</span> $B$ <span class="kw">times</span>:
+  </div>
+  <div class="indent2">
+    Sample $\tilde{F}$ &nbsp;&nbsp;&mdash;&nbsp;&nbsp;
+    <em>draw each $\tilde{f}_{ij} \sim \mathrm{clip}(\mathcal{N}(\mu_{ij}, \sigma_{ij}^2), 0, 1)$</em>
+  </div>
+  <div class="indent2">
+    Solve epigraph LP with $\tilde{F}$; &nbsp;find $\hat{\Phi}$ minimising $\|\ell - \tilde{F}^{\!\top}\Phi\|_\infty$
+  </div>
+
+  <div class="phase">Inner loop</div>
+  <div class="indent2">
+    <span class="kw">Repeat</span> $A$ <span class="kw">times</span>:
+  </div>
+  <div class="indent3">
+    Use the <em>same</em> $\tilde{F}$ as the outer step
+  </div>
+  <div class="indent3">
+    Sample $\tilde{\Phi}$ from the solution neighbourhood of $\hat{\Phi}$
+  </div>
+  <div class="indent3">
+    Compute $\tilde{L} \leftarrow \tilde{F}^{\!\top} \tilde{\Phi}$
+  </div>
+  <div class="indent3">
+    Append $\tilde{L}$ to $L_{\text{post}}$
+  </div>
+  <div class="indent2">
+    <span class="kw">End Repeat</span>
+  </div>
+  <div class="indent1">
+    <span class="kw">End Repeat</span>
+  </div>
+
+  <div class="indent1">Build and normalise histogram from $L_{\text{post}}$.</div>
+
+  <div style="margin-top:14px">
+    <span class="kw">Output:</span> &nbsp;normalised histogram over label space
+  </div>
+
+</div>
+
+<div class="highlight">
+  <strong>Conjecture (Kleinhenz et al. &sect;2.7):</strong> The double-sampling histogram converges to
+  the same limiting distribution as the single-sampling (hit-and-run) algorithm when
+  $A$ and $B$ are large, by the Central Limit Theorem.
+  This has not been proved.
+</div>
+
+<h2>Methodological Notes</h2>
+
+<p>
+<strong>On the a-priori $\Phi$ construction via SSIM.</strong>
+The structural similarity index (SSIM) has been used to rank images in the belief set by
+similarity to a new query image and to form the prior $\Phi$.
+<em>NB. SSIM is a poor way of doing this.</em>
+It is more commonly used to find duplicate or near-duplicate images, not to categorise
+image content.
+A better approach: ask a human observer to identify a few belief-set images that resemble
+the query image and assign weights directly.
+</p>
+
+<p>
+<strong>On the expert-combination variance formula.</strong>
+An alternative formula sometimes cited in older textbooks for combining $N$ expert estimates adds
+the variance of the expert means to the sum of within-expert variances:
+$$\sigma_z^2 = \sigma_1^2 + \cdots + \sigma_N^2 + \mathrm{var}(\mu_1,\ldots,\mu_N).$$
+No rigorous mathematical derivation for this formula has been identified.
+The derivation in the notebooks (BN_A &sect;2.8) uses the standard result for the average
+of independent Gaussians: $\sigma_z^2 = (\sigma_1^2 + \cdots + \sigma_N^2)/N^2$,
+which is the correct formula when $Z = (X_1 + \cdots + X_N)/N$.
+</p>
+
+<h2>Attribution</h2>
+
+<p>
+The improved Algorithm II, the epigraph LP formulation, and the hit-and-run sampling
+approach were developed in the context of the following conference submission:
+</p>
+
+<p style="padding-left:2em;">
+Robert Kleinhenz, Drazen Fabris, Christopher Waight, Varun Mangla.<br>
+<em>Enhancing Neural Network Performance using Belief Networks: A Combined Approach
+to Expert Evaluation and Inherited Uncertainty.</em><br>
+Proceedings of BAMC 2025, January 15, 2025, Santa Clara, CA, USA.<br>
+Draft 00000.1.
+</p>
+
+<h2>References</h2>
+
+<p style="font-size:0.88em; color:#444;">
+<em>References lifted from the original draft paper; intended for update before submission.</em>
+</p>
+
+<ol style="font-size:0.9em; line-height:1.8;">
+  <li>Pantoja M., Fabris D., Behrouzi A. &ldquo;Deep Learning Basic Overview.&rdquo; <em>Concrete International Magazine</em>, September 2018.</li>
+  <li>Tesla Crash Preliminary Report. US Department of Transportation, NHTSA PE 16-007.</li>
+  <li>Sun S., Chen C., Carin L. &ldquo;Learning Structured Weight Uncertainty in Bayesian Neural Networks.&rdquo; <em>AISTATS 2017</em>, Fort Lauderdale, FL. JMLR W&amp;CP Vol. 54.</li>
+  <li>Kendall A., Gal Y. &ldquo;What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?&rdquo; <em>NIPS 2017</em>. <a href="https://arxiv.org/abs/1703.04977">arXiv:1703.04977</a>.</li>
+  <li>Gal Y., Ghahramani Z. &ldquo;Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning.&rdquo; <em>ICML 2016</em>. PMLR 48:1050&ndash;1059.</li>
+  <li>Denoeux T. &ldquo;Handling Imprecise and Uncertain Class Labels in Classification and Clustering.&rdquo; COST Action IC 0702, Mallorca, March 2009.</li>
+  <li>Gal Y. &ldquo;What my Deep Learning Model Doesn&rsquo;t Know.&rdquo; Blog post.</li>
+  <li>CS345 lecture notes, University of Wales Swansea. www-compsci.swan.ac.uk/csphil/CS345/chapts5-9.pdf.</li>
+  <li>Heckerman D. &ldquo;The Certainty-Factor Model.&rdquo; <em>Encyclopedia of Artificial Intelligence</em>, 2nd ed. Wiley, New York, pp. 131&ndash;138.</li>
+  <li>Pearl J. <em>Probabilistic Reasoning in Intelligent Systems: Networks of Plausible Inference.</em> Morgan Kaufmann, San Mateo, CA.</li>
+  <li>Klir G. J. (ed.), Yuan B. (ed.) <em>Fuzzy Sets, Fuzzy Logic, and Fuzzy Systems &mdash; Selected Papers by Lotfi A. Zadeh.</em> World Scientific, Advances in Fuzzy Systems Vol. 6.</li>
+  <li>Knuth D. E. <em>The Art of Computer Programming</em>, Vol. 2, &sect;4.3.3, pp. 290&ndash;295.</li>
+  <li>Press W. H. et al. <em>Numerical Recipes in C</em>, &sect;8.10, pp. 329&ndash;343.</li>
+  <li>Google Research. &ldquo;AlphaGo: Mastering the Ancient Game of Go with Machine Learning.&rdquo; Research Blog, 27 January 2016.</li>
+  <li>Kendall A., Badrinarayanan V., Cipolla R. &ldquo;Bayesian SegNet: Model Uncertainty in Deep Convolutional Encoder-Decoder Architectures for Scene Understanding.&rdquo; <em>CoRR</em> abs/1511.02680, 2015.</li>
+  <li>Weideman H. J. &ldquo;Quantifying Uncertainty in Neural Networks.&rdquo; <a href="https://hjweide.github.io/quantifying-uncertainty-in-neural-networks">hjweide.github.io</a>.</li>
+  <li>Avis D., Fukuda K. &ldquo;A Pivoting Algorithm for Convex Hulls and Vertex Enumeration of Arrangements and Polyhedra.&rdquo; <em>Discrete &amp; Computational Geometry</em>, 8(3):295&ndash;313, 1992.</li>
+</ol>
+
+</body>
+</html>
